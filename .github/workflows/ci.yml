@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: vlang/setup-v@v1.7
+        with:
+          stable: true
+      - name: Check formatting
+        run: v fmt -verify .
+      - name: Check Markdown
+        run: v check-md README.md
+      - name: Run tests
+        run: v -silent test .
+      - name: Build release binary
+        run: v -prod -o factory-doctor .

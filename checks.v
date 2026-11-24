@@ -1,0 +1,201 @@
+module main
+
+import net.http
+import os
+import time
+
+fn run_checks(config Config) Report {
+	mut results := []CheckResult{cap: config.checks.len}
+	for check in config.checks {
+		results << run_check(check)
+	}
+	return build_report(results)
+}
+
+fn run_check(check CheckConfig) CheckResult {
+	started := time.now()
+	outcome := match check.kind {
+		'http' { check_http(check) }
+		'command' { check_command(check, check.target, check.args) }
+		'git_remote' {
+			check_command(check, 'git', ['ls-remote', '--exit-code', check.target, ...check.args])
+		}
+		'file' { check_file(check) }
+		else {
+			Outcome{ code: 'unsupported_check', message: 'unsupported check kind', passed: false }
+		}
+	}
+	duration := time.since(started).milliseconds()
+	status := if outcome.passed {
+		'pass'
+	} else if check.critical {
+		'fail'
+	} else {
+		'warn'
+	}
+	return CheckResult{
+		name:        check.name
+		kind:        check.kind
+		target:      safe_target(check.kind, check.target)
+		status:      status
+		code:        outcome.code
+		message:     outcome.message
+		duration_ms: duration
+	}
+}
+
+struct Outcome {
+	passed  bool
+	code    string
+	message string
+}
+
+fn check_http(check CheckConfig) Outcome {
+	response := http.fetch(
+		url:                  check.target
+		method:               .get
+		read_timeout:         i64(check.timeout_ms) * time.millisecond
+		write_timeout:        i64(check.timeout_ms) * time.millisecond
+		max_retries:          1
+		stop_receiving_limit: 2_048
+	) or {
+		return Outcome{
+			code:    'http_request_failed'
+			message: err.msg()
+		}
+	}
+	if response.status_code != check.expect_status {
+		return Outcome{
+			code:    'unexpected_http_status'
+			message: 'expected ${check.expect_status}, received ${response.status_code}'
+		}
+	}
+	return Outcome{
+		passed:  true
+		code:    'ok'
+		message: 'HTTP ${response.status_code}'
+	}
+}
+
+fn check_command(check CheckConfig, executable string, args []string) Outcome {
+	executable_path := os.find_abs_path_of_executable(executable) or {
+		return Outcome{
+			code:    'executable_not_found'
+			message: 'executable "${executable}" was not found'
+		}
+	}
+	mut process := os.new_process(executable_path)
+	process.set_args(args)
+	process.use_pgroup = true
+	if check.working_directory != '' {
+		if !os.is_dir(check.working_directory) {
+			return Outcome{
+				code:    'working_directory_not_found'
+				message: 'working directory does not exist'
+			}
+		}
+		process.set_work_folder(check.working_directory)
+	}
+	process.set_redirect_stdio_merged()
+	process.run()
+	started := time.now()
+	for process.is_alive() {
+		if process.is_pending(.stdout) {
+			process.stdout_read()
+		}
+		if time.since(started).milliseconds() >= check.timeout_ms {
+			process.signal_pgkill()
+			process.wait()
+			process.close()
+			return Outcome{
+				code:    'command_timeout'
+				message: 'timed out after ${check.timeout_ms} ms'
+			}
+		}
+		time.sleep(10 * time.millisecond)
+	}
+	process.wait()
+	if process.is_pending(.stdout) {
+		process.stdout_read()
+	}
+	exit_code := process.code
+	process.close()
+	if exit_code != 0 {
+		return Outcome{
+			code:    'command_failed'
+			message: 'exit code ${exit_code}'
+		}
+	}
+	return Outcome{
+		passed:  true
+		code:    'ok'
+		message: 'exit code 0'
+	}
+}
+
+fn check_file(check CheckConfig) Outcome {
+	if !os.exists(check.target) {
+		return Outcome{
+			code:    'file_not_found'
+			message: 'path does not exist'
+		}
+	}
+	if !os.is_readable(check.target) {
+		return Outcome{
+			code:    'file_not_readable'
+			message: 'path is not readable'
+		}
+	}
+	return Outcome{
+		passed:  true
+		code:    'ok'
+		message: if os.is_dir(check.target) { 'directory is readable' } else { 'file is readable' }
+	}
+}
+
+fn safe_target(kind string, target string) string {
+	if kind !in ['http', 'git_remote'] {
+		return target
+	}
+	mut clean := target.all_before('?')
+	if scheme_index := clean.index('://') {
+		prefix := clean[..scheme_index + 3]
+		remainder := clean[scheme_index + 3..]
+		host_end := remainder.index('/') or { remainder.len }
+		authority := remainder[..host_end]
+		if at_index := authority.last_index('@') {
+			clean = prefix + authority[at_index + 1..] + remainder[host_end..]
+		}
+	}
+	return clean
+}
+
+fn build_report(results []CheckResult) Report {
+	mut passed := 0
+	mut warned := 0
+	mut failed := 0
+	for result in results {
+		match result.status {
+			'pass' { passed++ }
+			'warn' { warned++ }
+			'fail' { failed++ }
+			else {}
+		}
+	}
+	return Report{
+		status:  if failed > 0 {
+			'fail'
+		} else if warned > 0 {
+			'warn'
+		} else {
+			'pass'
+		}
+		checks:  results
+		summary: Summary{
+			total:  results.len
+			passed: passed
+			warned: warned
+			failed: failed
+		}
+	}
+}

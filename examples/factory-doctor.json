@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "checks": [
+    {
+      "name": "Source repository",
+      "kind": "git_remote",
+      "target": "https://github.com/vlang/v",
+      "args": ["HEAD"],
+      "timeout_ms": 5000
+    },
+    {
+      "name": "Factory API",
+      "kind": "http",
+      "target": "https://example.com",
+      "expect_status": 200,
+      "timeout_ms": 3000
+    },
+    {
+      "name": "Git executable",
+      "kind": "command",
+      "target": "git",
+      "args": ["--version"],
+      "timeout_ms": 1000
+    },
+    {
+      "name": "Optional local cache",
+      "kind": "file",
+      "target": "./cache",
+      "critical": false,
+      "timeout_ms": 100
+    }
+  ]
+}
