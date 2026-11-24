@@ -11,12 +11,12 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: vlang/setup-v@v1.7
         with:
-          stable: true
+          version-file: .v-version
       - name: Check formatting
         run: v fmt -verify .
       - name: Check Markdown

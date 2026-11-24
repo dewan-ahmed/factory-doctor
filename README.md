@@ -24,7 +24,7 @@ code.
 
 ## Build
 
-Install [V](https://vlang.io/), then run:
+Install the V version in `.v-version`, then run:
 
 ```sh
 v -prod -o factory-doctor .
