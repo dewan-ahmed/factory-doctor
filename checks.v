@@ -15,16 +15,27 @@ fn run_checks(config Config) Report {
 fn run_check(check CheckConfig) CheckResult {
 	started := time.now()
 	outcome := match check.kind {
-		'http' { check_http(check) }
-		'command' { check_command(check, check.target, check.args) }
-		'git_remote' {
-			check_command(check, 'git', ['ls-remote', '--exit-code', check.target, ...check.args])
+		'http' {
+			check_http(check)
 		}
-		'file' { check_file(check) }
+		'command' {
+			check_command(check, check.target, check.args)
+		}
+		'git_remote' {
+			check_git_remote(check)
+		}
+		'file' {
+			check_file(check)
+		}
 		else {
-			Outcome{ code: 'unsupported_check', message: 'unsupported check kind', passed: false }
+			Outcome{
+				code:    'unsupported_check'
+				message: 'unsupported check kind'
+				passed:  false
+			}
 		}
 	}
+
 	duration := time.since(started).milliseconds()
 	status := if outcome.passed {
 		'pass'
@@ -50,6 +61,12 @@ struct Outcome {
 	message string
 }
 
+fn check_git_remote(check CheckConfig) Outcome {
+	mut args := ['ls-remote', '--exit-code', check.target]
+	args << check.args
+	return check_command(check, 'git', args)
+}
+
 fn check_http(check CheckConfig) Outcome {
 	response := http.fetch(
 		url:                  check.target
@@ -58,12 +75,10 @@ fn check_http(check CheckConfig) Outcome {
 		write_timeout:        i64(check.timeout_ms) * time.millisecond
 		max_retries:          1
 		stop_receiving_limit: 2_048
-	) or {
-		return Outcome{
-			code:    'http_request_failed'
-			message: err.msg()
-		}
-	}
+	) or { return Outcome{
+		code:    'http_request_failed'
+		message: err.msg()
+	} }
 	if response.status_code != check.expect_status {
 		return Outcome{
 			code:    'unexpected_http_status'
@@ -96,12 +111,15 @@ fn check_command(check CheckConfig, executable string, args []string) Outcome {
 		}
 		process.set_work_folder(check.working_directory)
 	}
-	process.set_redirect_stdio_merged()
+	process.set_redirect_stdio()
 	process.run()
 	started := time.now()
 	for process.is_alive() {
 		if process.is_pending(.stdout) {
 			process.stdout_read()
+		}
+		if process.is_pending(.stderr) {
+			process.stderr_read()
 		}
 		if time.since(started).milliseconds() >= check.timeout_ms {
 			process.signal_pgkill()
@@ -117,6 +135,9 @@ fn check_command(check CheckConfig, executable string, args []string) Outcome {
 	process.wait()
 	if process.is_pending(.stdout) {
 		process.stdout_read()
+	}
+	if process.is_pending(.stderr) {
+		process.stderr_read()
 	}
 	exit_code := process.code
 	process.close()

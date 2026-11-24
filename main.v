@@ -1,6 +1,6 @@
 module main
 
-import json2
+import json
 import os
 
 fn main() {
@@ -23,7 +23,7 @@ fn main() {
 	}
 	report := run_checks(config)
 	if output_json {
-		println(json2.encode[Report](report))
+		println(json.encode(report))
 	} else {
 		print_report(report)
 	}

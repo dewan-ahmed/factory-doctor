@@ -14,9 +14,12 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: vlang/setup-v@v1.7
-        with:
-          version-file: .v-version
+      - name: Install V
+        run: |
+          version="$(cat .v-version)"
+          curl -fsSL "https://github.com/vlang/v/releases/download/${version}/v_linux.zip" -o /tmp/v.zip
+          unzip -q /tmp/v.zip -d "${HOME}"
+          echo "${HOME}/v" >> "${GITHUB_PATH}"
       - name: Check formatting
         run: v fmt -verify .
       - name: Check Markdown

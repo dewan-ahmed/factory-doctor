@@ -1,11 +1,11 @@
 module main
 
-import json2
+import json
 import os
 
 fn load_config(path string) !Config {
 	content := os.read_file(path)!
-	config := json2.decode[Config](content)!
+	config := json.decode(Config, content)!
 	validate_config(config)!
 	return config
 }
@@ -30,7 +30,7 @@ fn validate_config(config Config) ! {
 		if check.timeout_ms < 1 {
 			return error('check "${check.name}" timeout_ms must be positive')
 		}
-		if check.kind == 'http' && check.expect_status !in 100 .. 600 {
+		if check.kind == 'http' && check.expect_status !in 100..600 {
 			return error('check "${check.name}" expect_status must be an HTTP status code')
 		}
 	}
