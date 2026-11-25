@@ -18,6 +18,7 @@ version 1.0.
 - `command`: run a command with literal arguments and a timeout.
 - `git_remote`: confirm a Git remote and optional ref are accessible.
 - `file`: confirm a local file or directory is readable.
+- `env`: confirm an environment variable is set without printing its value.
 
 Checks marked `"critical": false` produce warnings instead of a failing exit
 code.
@@ -71,6 +72,69 @@ Exit codes are stable:
 Command arguments are passed literally without a shell. Do not put credentials
 in configuration files. Use the target tool's environment or workload identity
 support.
+
+## Bootstrap readiness
+
+`factory-doctor bootstrap` checks whether a new software factory has the setup
+agents need before the first session: identities, secrets, source control,
+connectors, environments, network access, agent instructions, model defaults,
+budgets, audit trails, and review policy.
+
+```sh
+./factory-doctor bootstrap init
+./factory-doctor bootstrap
+./factory-doctor bootstrap --profile factory-bootstrap.json --json
+./factory-doctor bootstrap --strict
+```
+
+`bootstrap init` writes a starter profile from
+`examples/factory-bootstrap.json` to `factory-bootstrap.json`. It refuses to
+replace an existing file unless `--force` is set. Edit the profile for your
+factory, then commit it with your environment setup.
+
+Each requirement has a category, a reason, next-step guidance, and a `verify`
+method. Automated methods reuse the check kinds above. `manual` requirements
+cannot be verified locally; set `"confirmed": true` once the team has completed
+them.
+
+```json
+{
+  "version": 1,
+  "name": "Platform factory",
+  "requirements": [
+    {
+      "id": "secrets.source-control-token",
+      "category": "secrets",
+      "name": "Source control token",
+      "rationale": "Agents need repository access without stored credentials.",
+      "guidance": "Expose a least-privilege token as SOURCE_CONTROL_TOKEN.",
+      "verify": { "kind": "env", "target": "SOURCE_CONTROL_TOKEN" }
+    },
+    {
+      "id": "budgets.spend-limits",
+      "category": "budgets",
+      "name": "Spend limits and alerts",
+      "guidance": "Set per-session or per-team limits and alerts.",
+      "verify": { "kind": "manual" },
+      "confirmed": true
+    }
+  ]
+}
+```
+
+Supported categories are `identity`, `secrets`, `source_control`,
+`connectors`, `environments`, `network`, `agents`, `models`, `budgets`,
+`observability`, and `policy`. Requirements are required by default; set
+`"required": false` for recommendations.
+
+Results are `pass`, `missing`, `warn`, or `manual`. The overall status is
+`ready`, `action_required`, or `not_ready`. Bootstrap exits `1` when a required
+item is missing, and with `--strict` also when any warning or manual item is
+open. Invalid profiles exit `2`.
+
+The profile describes capabilities, not vendor setup. It does not create
+accounts, store credentials, or change factory settings. Vendor-specific setup
+steps belong in each requirement's `guidance` and `docs_url`.
 
 ## Design principles
 

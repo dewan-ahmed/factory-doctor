@@ -27,6 +27,9 @@ fn run_check(check CheckConfig) CheckResult {
 		'file' {
 			check_file(check)
 		}
+		'env' {
+			check_env(check)
+		}
 		else {
 			Outcome{
 				code:    'unsupported_check'
@@ -171,6 +174,20 @@ fn check_file(check CheckConfig) Outcome {
 		passed:  true
 		code:    'ok'
 		message: if os.is_dir(check.target) { 'directory is readable' } else { 'file is readable' }
+	}
+}
+
+fn check_env(check CheckConfig) Outcome {
+	if os.getenv(check.target).trim_space() == '' {
+		return Outcome{
+			code:    'env_not_set'
+			message: 'environment variable is not set'
+		}
+	}
+	return Outcome{
+		passed:  true
+		code:    'ok'
+		message: 'environment variable is set'
 	}
 }
 
