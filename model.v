@@ -17,6 +17,9 @@ pub:
 	critical          bool   = true
 	expect            string = 'pass'
 	working_directory string
+	max_files         int
+	max_lines         int
+	exclude           []string
 }
 
 pub struct CheckResult {

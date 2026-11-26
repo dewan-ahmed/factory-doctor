@@ -28,3 +28,19 @@ jobs:
         run: v -silent test .
       - name: Build release binary
         run: v -prod -o factory-doctor .
+
+  test-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install V
+        shell: bash
+        run: |
+          version="$(cat .v-version)"
+          curl -fsSL "https://github.com/vlang/v/releases/download/${version}/v_windows.zip" -o "${RUNNER_TEMP}/v.zip"
+          unzip -q "${RUNNER_TEMP}/v.zip" -d "${RUNNER_TEMP}"
+          echo "${RUNNER_TEMP}/v" >> "${GITHUB_PATH}"
+      - name: Run tests
+        run: v -silent test .
+      - name: Build release binary
+        run: v -prod -o factory-doctor.exe .
