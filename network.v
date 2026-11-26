@@ -133,10 +133,19 @@ fn dial_tcp_attempt(host string, port int, result chan NetworkAttempt) {
 	}
 }
 
+// Winsock reports refusals as WSAECONNREFUSED (10061), not the CRT errno.
+fn is_connection_refused(message string) bool {
+	$if windows {
+		return message.contains('(10061)') || message.contains('wsaeconnrefused')
+	} $else {
+		return message.contains('socket error: ${int(C.ECONNREFUSED)};')
+	}
+}
+
 fn dial_tcp_address(address string, dials chan NetworkAttempt) {
 	mut conn := net.dial_tcp(address) or {
 		dials <- NetworkAttempt{
-			code:    if err.msg().contains('socket error: ${int(C.ECONNREFUSED)};') {
+			code:    if is_connection_refused(err.msg()) {
 				'tcp_connect_refused'
 			} else {
 				'tcp_connect_failed'
