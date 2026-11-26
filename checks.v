@@ -174,8 +174,8 @@ fn check_http(check CheckConfig) Outcome {
 		max_retries:            1
 		stop_receiving_limit:   2_048
 	) or {
+		code := http_error_code(err.msg())
 		message := redact(err.msg(), auth.secrets)
-		code := http_error_code(message)
 		return Outcome{
 			code:    code
 			message: match code {

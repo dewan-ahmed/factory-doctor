@@ -206,3 +206,18 @@ fn test_validate_config_rejects_ca_file_without_certificate() {
 fn test_http_error_code_flags_bad_trust_configuration() {
 	assert http_error_code('net.mbedtls SSLConn.init, failed to set certificates, ret: -8576') == 'tls_configuration_invalid'
 }
+
+fn test_cookie_made_entirely_of_env_reference_is_accepted() {
+	validate_http_headers({
+		'Cookie': '\${env:SESSION_COOKIE}'
+	})!
+	os.setenv('FD_TEST_COOKIE', 'session=abc; theme=dark', true)
+	auth := build_http_auth({
+		'Cookie': '\${env:FD_TEST_COOKIE}'
+	})!
+	assert auth.cookies['session'] == 'abc'
+}
+
+fn test_http_error_code_detects_schannel_trust_failures() {
+	assert http_error_code('SEC_E_UNTRUSTED_ROOT: The certificate chain was issued by an authority that is not trusted') == 'tls_verification_failed'
+}

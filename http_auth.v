@@ -82,7 +82,7 @@ fn validate_http_headers(headers map[string]string) ! {
 			return error('header ${name} value must not contain line breaks')
 		}
 		validate_env_refs(value) or { return error('header ${name}: ${err.msg()}') }
-		if name.to_lower() == 'cookie' {
+		if name.to_lower() == 'cookie' && !value.contains('\${env:') {
 			parse_cookie_header(value) or { return error('header ${name}: ${err.msg()}') }
 		}
 	}
@@ -182,6 +182,11 @@ fn http_error_code(message string) string {
 		if message.contains(code) {
 			return 'tls_verification_failed'
 		}
+	}
+	// SChannel on Windows reports trust failures as SEC_E_/CERT_E_ codes.
+	lower := message.to_lower()
+	if lower.contains('certificate') || message.contains('SEC_E_') || message.contains('CERT_E_') {
+		return 'tls_verification_failed'
 	}
 	return 'http_request_failed'
 }
