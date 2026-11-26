@@ -292,4 +292,5 @@ fn test_parse_numstat_handles_renames_and_binary() {
 	assert entries[2].paths == ['old.lock', 'new/name.txt']
 	assert diff_excluded('*.lock', entries[2].paths)
 	assert !diff_excluded('*.lock', entries[0].paths)
+	assert printable('evil\x1b[2J\nname') == 'evil?[2J?name'
 }

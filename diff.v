@@ -39,11 +39,18 @@ fn check_diff(check CheckConfig) Outcome {
 		}
 	}
 	stats.sort(a.changed > b.changed)
-	largest := stats[..if stats.len > 3 { 3 } else { stats.len }].map('${it.path} (${it.changed})')
+	largest :=
+		stats[..if stats.len > 3 { 3 } else { stats.len }].map('${printable(it.path)} (${it.changed})')
 	return Outcome{
 		code:    'diff_too_large'
 		message: '${summary}; limits ${check.max_files} files, ${check.max_lines} lines; largest: ${largest.join(', ')}'
 	}
+}
+
+// printable replaces control characters so a file name cannot rewrite the
+// terminal report.
+fn printable(value string) string {
+	return value.bytes().map(if it < 0x20 || it == 0x7f { u8(`?`) } else { it }).bytestr()
 }
 
 struct NumstatEntry {
