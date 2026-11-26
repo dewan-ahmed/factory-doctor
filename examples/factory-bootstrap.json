@@ -1,0 +1,155 @@
+{
+  "version": 1,
+  "name": "Example software factory",
+  "requirements": [
+    {
+      "id": "identity.git-author",
+      "category": "identity",
+      "name": "Git author identity",
+      "rationale": "Agent commits must be attributable to a service or human identity.",
+      "guidance": "Configure a dedicated Git user name and email for factory commits.",
+      "verify": {
+        "kind": "command",
+        "target": "git",
+        "args": ["config", "--get", "user.email"],
+        "timeout_ms": 1000
+      }
+    },
+    {
+      "id": "secrets.source-control-token",
+      "category": "secrets",
+      "name": "Source control token",
+      "rationale": "Agents need repository access without credentials stored in prompts or files.",
+      "guidance": "Store a least-privilege token in the factory secret store and expose it as SOURCE_CONTROL_TOKEN at runtime.",
+      "verify": {
+        "kind": "env",
+        "target": "SOURCE_CONTROL_TOKEN"
+      }
+    },
+    {
+      "id": "secrets.rotation",
+      "category": "secrets",
+      "name": "Secret owner and rotation",
+      "rationale": "Factory credentials outlive individual sessions and need an owner.",
+      "guidance": "Record an owner, expiry, and rotation procedure for every factory secret.",
+      "verify": {
+        "kind": "manual"
+      }
+    },
+    {
+      "id": "source-control.repository",
+      "category": "source_control",
+      "name": "Repository reachable",
+      "rationale": "The factory cannot start work if it cannot read the target repository.",
+      "guidance": "Grant the factory identity read access to the repository and confirm its network path.",
+      "verify": {
+        "kind": "git_remote",
+        "target": "https://github.com/vlang/v",
+        "args": ["HEAD"],
+        "timeout_ms": 5000
+      }
+    },
+    {
+      "id": "connectors.work-tracker",
+      "category": "connectors",
+      "name": "Work tracker connector",
+      "rationale": "Agents need task context and a place to report status.",
+      "guidance": "Connect the issue tracker or chat system with the least access needed to read tasks and post updates.",
+      "required": false,
+      "verify": {
+        "kind": "manual"
+      }
+    },
+    {
+      "id": "environments.git",
+      "category": "environments",
+      "name": "Git toolchain",
+      "rationale": "Every software factory needs Git in its execution environment.",
+      "guidance": "Install Git in the base environment or image used by agents.",
+      "verify": {
+        "kind": "command",
+        "target": "git",
+        "args": ["--version"],
+        "timeout_ms": 1000
+      }
+    },
+    {
+      "id": "environments.reproducible-setup",
+      "category": "environments",
+      "name": "Reproducible environment setup",
+      "rationale": "Agents waste time and money when every session rebuilds setup by hand.",
+      "guidance": "Keep environment setup in version control, pin toolchain versions, and rebuild cached images from it.",
+      "verify": {
+        "kind": "manual"
+      }
+    },
+    {
+      "id": "network.public-egress",
+      "category": "network",
+      "name": "Required internet egress",
+      "rationale": "Package registries and APIs blocked by egress policy cause late failures.",
+      "guidance": "Allow only the hosts the factory needs, then add each critical host as a check.",
+      "required": false,
+      "verify": {
+        "kind": "http",
+        "target": "https://example.com",
+        "expect_status": 200,
+        "timeout_ms": 3000
+      }
+    },
+    {
+      "id": "agents.repository-instructions",
+      "category": "agents",
+      "name": "Repository agent instructions",
+      "rationale": "Agents follow project conventions more reliably when they are written down.",
+      "guidance": "Add AGENTS.md with build, test, lint, and review instructions.",
+      "required": false,
+      "verify": {
+        "kind": "file",
+        "target": "AGENTS.md",
+        "timeout_ms": 100
+      }
+    },
+    {
+      "id": "models.approved-defaults",
+      "category": "models",
+      "name": "Approved model defaults",
+      "rationale": "Unreviewed model choices create cost, data handling, and quality surprises.",
+      "guidance": "Choose approved default models and data-retention settings for each agent workload.",
+      "verify": {
+        "kind": "manual"
+      }
+    },
+    {
+      "id": "budgets.spend-limits",
+      "category": "budgets",
+      "name": "Spend limits and alerts",
+      "rationale": "Autonomous sessions can consume budget faster than human review cycles.",
+      "guidance": "Set per-session or per-team limits and alert before they are reached.",
+      "verify": {
+        "kind": "manual"
+      }
+    },
+    {
+      "id": "observability.audit-log",
+      "category": "observability",
+      "name": "Session audit trail",
+      "rationale": "Teams need to reconstruct what an agent changed and why.",
+      "guidance": "Retain session logs, cost records, and links between sessions, commits, and pull requests.",
+      "required": false,
+      "verify": {
+        "kind": "manual"
+      }
+    },
+    {
+      "id": "policy.human-review",
+      "category": "policy",
+      "name": "Human review before merge",
+      "rationale": "Agent changes need the same review and branch protection as human changes.",
+      "guidance": "Require review and passing checks on protected branches, and keep production credentials out of agent environments.",
+      "verify": {
+        "kind": "manual"
+      }
+    }
+  ]
+}

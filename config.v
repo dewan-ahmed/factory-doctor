@@ -21,7 +21,7 @@ fn validate_config(config Config) ! {
 		if check.name.trim_space() == '' {
 			return error('check ${index + 1} is missing a name')
 		}
-		if check.kind !in ['http', 'command', 'git_remote', 'file'] {
+		if check.kind !in ['http', 'command', 'git_remote', 'file', 'env'] {
 			return error('check "${check.name}" has unsupported kind "${check.kind}"')
 		}
 		if check.target.trim_space() == '' {
