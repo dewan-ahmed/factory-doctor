@@ -6,7 +6,7 @@ import time
 
 const bootstrap_categories = ['identity', 'secrets', 'source_control', 'connectors', 'environments',
 	'network', 'agents', 'models', 'budgets', 'observability', 'policy']
-const verification_kinds = ['manual', 'env', 'http', 'command', 'git_remote', 'file']
+const verification_kinds = ['manual', 'env', 'http', 'command', 'git_remote', 'file', 'tcp', 'dns']
 const bootstrap_template = $embed_file('examples/factory-bootstrap.json')
 
 pub struct BootstrapProfile {
@@ -128,6 +128,9 @@ fn validate_bootstrap_profile(profile BootstrapProfile) ! {
 		}
 		if verify.kind == 'http' && verify.expect_status !in 100..600 {
 			return error('${label} verify expect_status must be an HTTP status code')
+		}
+		validate_network_check(verify.kind, verify.target, verify.args) or {
+			return error('${label} verify ${err.msg()}')
 		}
 	}
 }

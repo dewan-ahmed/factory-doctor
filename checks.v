@@ -30,6 +30,12 @@ fn run_check(check CheckConfig) CheckResult {
 		'env' {
 			check_env(check)
 		}
+		'tcp' {
+			check_tcp(check)
+		}
+		'dns' {
+			check_dns(check)
+		}
 		'diff' {
 			check_diff(check)
 		}
@@ -94,11 +100,28 @@ fn apply_expectation(kind string, expect string, observed Outcome) Outcome {
 // remote check only proves denial if Git itself ran.
 fn denial_codes(kind string) []string {
 	return match kind {
-		'http' { ['http_request_failed'] }
-		'command' { ['executable_not_found', 'command_failed', 'command_timeout'] }
-		'git_remote' { ['command_failed', 'command_timeout'] }
-		'file' { ['file_not_found', 'file_not_readable'] }
-		else { []string{} }
+		'http' {
+			['http_request_failed']
+		}
+		'command' {
+			['executable_not_found', 'command_failed', 'command_timeout']
+		}
+		'git_remote' {
+			['command_failed', 'command_timeout']
+		}
+		'file' {
+			['file_not_found', 'file_not_readable']
+		}
+		'tcp' {
+			['dns_resolution_failed', 'tcp_connect_refused', 'tcp_connect_timeout',
+				'tcp_connect_failed']
+		}
+		'dns' {
+			['dns_resolution_failed']
+		}
+		else {
+			[]string{}
+		}
 	}
 }
 
