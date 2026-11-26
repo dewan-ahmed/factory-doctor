@@ -30,6 +30,9 @@ fn run_check(check CheckConfig) CheckResult {
 		'env' {
 			check_env(check)
 		}
+		'diff' {
+			check_diff(check)
+		}
 		else {
 			Outcome{
 				code:    'unsupported_check'
