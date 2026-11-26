@@ -23,7 +23,7 @@ jobs:
       - name: Check formatting
         run: v fmt -verify .
       - name: Check Markdown
-        run: v check-md README.md
+        run: v check-md README.md AGENTS.md
       - name: Run tests
         run: v -silent test .
       - name: Build release binary
