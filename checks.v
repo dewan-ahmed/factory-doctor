@@ -36,7 +36,7 @@ fn run_check(check CheckConfig) CheckResult {
 		}
 	}
 
-	outcome := apply_expectation(check.expect, observed)
+	outcome := apply_expectation(check.kind, check.expect, observed)
 	duration := time.since(started).milliseconds()
 	status := if outcome.passed {
 		'pass'
@@ -58,21 +58,41 @@ fn run_check(check CheckConfig) CheckResult {
 }
 
 // apply_expectation turns a check into a denial assertion when expect is
-// "fail", so a config can prove that a sandbox blocks access.
-fn apply_expectation(expect string, observed Outcome) Outcome {
+// "fail", so a config can prove that a sandbox blocks access. Only failures
+// that show the access was denied count; a broken probe is inconclusive.
+fn apply_expectation(kind string, expect string, observed Outcome) Outcome {
 	if expect != 'fail' {
 		return observed
 	}
-	if observed.passed {
+	if observed.passed || (kind == 'http' && observed.code == 'unexpected_http_status') {
 		return Outcome{
 			code:    'unexpectedly_allowed'
-			message: 'expected failure but check passed: ${observed.message}'
+			message: 'expected access to be denied but it was allowed: ${observed.message}'
+		}
+	}
+	if observed.code !in denial_codes(kind) {
+		return Outcome{
+			code:    'inconclusive_denial'
+			message: 'could not verify denial: ${observed.code}: ${observed.message}'
 		}
 	}
 	return Outcome{
 		passed:  true
 		code:    'blocked_as_expected'
 		message: 'failed as expected: ${observed.code}'
+	}
+}
+
+// denial_codes lists the failure codes that show access was denied for each
+// check kind. Any HTTP response means the endpoint was reachable, and a Git
+// remote check only proves denial if Git itself ran.
+fn denial_codes(kind string) []string {
+	return match kind {
+		'http' { ['http_request_failed'] }
+		'command' { ['executable_not_found', 'command_failed', 'command_timeout'] }
+		'git_remote' { ['command_failed', 'command_timeout'] }
+		'file' { ['file_not_found', 'file_not_readable'] }
+		else { []string{} }
 	}
 }
 

@@ -1,5 +1,7 @@
 module main
 
+import net.http
+
 fn test_validate_config_accepts_supported_checks() {
 	config := Config{
 		checks: [
@@ -55,7 +57,7 @@ fn test_safe_target_removes_credentials_and_query() {
 }
 
 fn test_expect_fail_passes_when_check_fails() {
-	outcome := apply_expectation('fail', Outcome{
+	outcome := apply_expectation('file', 'fail', Outcome{
 		code:    'file_not_found'
 		message: 'path does not exist'
 	})
@@ -65,7 +67,7 @@ fn test_expect_fail_passes_when_check_fails() {
 }
 
 fn test_expect_fail_fails_when_check_passes() {
-	outcome := apply_expectation('fail', Outcome{
+	outcome := apply_expectation('file', 'fail', Outcome{
 		passed:  true
 		code:    'ok'
 		message: 'file is readable'
@@ -79,7 +81,7 @@ fn test_expect_pass_keeps_outcome() {
 		code:    'file_not_found'
 		message: 'path does not exist'
 	}
-	assert apply_expectation('pass', observed) == observed
+	assert apply_expectation('file', 'pass', observed) == observed
 }
 
 fn test_validate_config_rejects_unknown_expectation() {
@@ -111,4 +113,73 @@ fn test_run_check_expect_fail_on_missing_file() {
 	assert result.status == 'pass'
 	assert result.expect == 'fail'
 	assert result.code == 'blocked_as_expected'
+}
+
+fn test_expect_fail_treats_any_http_response_as_allowed() {
+	outcome := apply_expectation('http', 'fail', Outcome{
+		code:    'unexpected_http_status'
+		message: 'expected 200, received 404'
+	})
+	assert !outcome.passed
+	assert outcome.code == 'unexpectedly_allowed'
+}
+
+fn test_expect_fail_passes_when_http_request_fails() {
+	outcome := apply_expectation('http', 'fail', Outcome{
+		code:    'http_request_failed'
+		message: 'connection refused'
+	})
+	assert outcome.passed
+	assert outcome.code == 'blocked_as_expected'
+}
+
+fn test_expect_fail_git_remote_without_git_is_inconclusive() {
+	outcome := apply_expectation('git_remote', 'fail', Outcome{
+		code:    'executable_not_found'
+		message: 'executable "git" was not found'
+	})
+	assert !outcome.passed
+	assert outcome.code == 'inconclusive_denial'
+}
+
+fn test_expect_fail_missing_working_directory_is_inconclusive() {
+	outcome := apply_expectation('command', 'fail', Outcome{
+		code:    'working_directory_not_found'
+		message: 'working directory does not exist'
+	})
+	assert !outcome.passed
+	assert outcome.code == 'inconclusive_denial'
+}
+
+fn test_run_check_expect_fail_on_reachable_http_status_mismatch() {
+	mut server := &http.Server{
+		addr:    '127.0.0.1:18471'
+		handler: NotFoundHandler{}
+	}
+	spawn server.listen_and_serve()
+	server.wait_till_running() or { panic(err) }
+	defer {
+		server.stop()
+	}
+	result := run_check(CheckConfig{
+		name:          'Local endpoint is blocked'
+		kind:          'http'
+		target:        'http://127.0.0.1:18471/'
+		expect:        'fail'
+		expect_status: 200
+		timeout_ms:    2000
+		critical:      true
+	})
+	assert result.status == 'fail'
+	assert result.code == 'unexpectedly_allowed'
+}
+
+struct NotFoundHandler {}
+
+fn (h NotFoundHandler) handle(req http.Request) http.Response {
+	mut res := http.Response{
+		body: 'missing'
+	}
+	res.set_status(.not_found)
+	return res
 }

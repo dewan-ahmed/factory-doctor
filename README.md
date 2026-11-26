@@ -36,7 +36,14 @@ have, such as host credentials or unapproved network egress:
 ```
 
 A denied check reports `blocked_as_expected`. A check that unexpectedly
-succeeds reports `unexpectedly_allowed` and fails the run when critical.
+succeeds reports `unexpectedly_allowed` and fails the run when critical. For
+`http`, any response counts as allowed, whatever its status.
+
+Only failures that show denial count: `file_not_found` or `file_not_readable`
+for `file`, `http_request_failed` for `http`, a failed or timed-out command for
+`command` and `git_remote`, and a missing executable for `command`. Anything
+else, such as `git` not being installed for a `git_remote` check, reports
+`inconclusive_denial` and is treated as a failure.
 
 ## Build
 
