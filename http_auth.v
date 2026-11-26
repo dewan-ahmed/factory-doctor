@@ -82,8 +82,10 @@ fn validate_http_headers(headers map[string]string) ! {
 			return error('header ${name} value must not contain line breaks')
 		}
 		validate_env_refs(value) or { return error('header ${name}: ${err.msg()}') }
-		if name.to_lower() == 'cookie' && !value.contains('\${env:') {
-			parse_cookie_header(value) or { return error('header ${name}: ${err.msg()}') }
+		if name.to_lower() == 'cookie' && !is_single_env_reference(value) {
+			parse_cookie_header(env_placeholders(value)) or {
+				return error('header ${name}: ${err.msg()}')
+			}
 		}
 	}
 }
@@ -184,9 +186,25 @@ fn http_error_code(message string) string {
 		}
 	}
 	// SChannel on Windows reports trust failures as SEC_E_/CERT_E_ codes.
-	lower := message.to_lower()
-	if lower.contains('certificate') || message.contains('SEC_E_') || message.contains('CERT_E_') {
+	if message.contains('SEC_E_') || message.contains('CERT_E_') {
 		return 'tls_verification_failed'
 	}
 	return 'http_request_failed'
+}
+
+fn is_single_env_reference(value string) bool {
+	v := value.trim_space()
+	return v.starts_with('\${env:') && v.ends_with('}') && v.count('\${env:') == 1
+}
+
+// env_placeholders swaps env references for a literal so the rest of a Cookie
+// template can be validated before the variables are known.
+fn env_placeholders(value string) string {
+	mut out := value
+	for out.contains('\${env:') {
+		start := out.index('\${env:') or { break }
+		end := out.index_after('}', start) or { break }
+		out = out[..start] + 'x' + out[end + 1..]
+	}
+	return out
 }

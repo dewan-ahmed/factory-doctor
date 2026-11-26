@@ -221,3 +221,19 @@ fn test_cookie_made_entirely_of_env_reference_is_accepted() {
 fn test_http_error_code_detects_schannel_trust_failures() {
 	assert http_error_code('SEC_E_UNTRUSTED_ROOT: The certificate chain was issued by an authority that is not trusted') == 'tls_verification_failed'
 }
+
+fn test_cookie_template_literal_pairs_are_validated() {
+	if _ := validate_http_headers({
+		'Cookie': 'broken; session=\${env:SESSION}'
+	})
+	{
+		assert false, 'expected malformed literal pair to be rejected'
+	}
+	validate_http_headers({
+		'Cookie': 'theme=dark; session=\${env:SESSION}'
+	})!
+}
+
+fn test_hostname_containing_certificate_is_not_tls_failure() {
+	assert http_error_code('dial_tcp failed for address certificates.internal:80') != 'tls_verification_failed'
+}
