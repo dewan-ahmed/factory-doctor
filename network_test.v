@@ -97,8 +97,8 @@ fn test_tcp_check_reports_refused_connection() {
 		target:     '127.0.0.1:${port}'
 		timeout_ms: 10_000
 	})
-	assert result.status == 'fail'
-	assert result.code == 'tcp_connect_refused'
+	assert result.status == 'fail', result.message
+	assert result.code == 'tcp_connect_refused', result.message
 }
 
 fn test_tcp_expect_fail_treats_refusal_as_blocked() {
