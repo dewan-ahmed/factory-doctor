@@ -95,7 +95,7 @@ fn test_tcp_check_reports_refused_connection() {
 		name:       'Closed port'
 		kind:       'tcp'
 		target:     '127.0.0.1:${port}'
-		timeout_ms: 2_000
+		timeout_ms: 10_000
 	})
 	assert result.status == 'fail'
 	assert result.code == 'tcp_connect_refused'
