@@ -243,6 +243,26 @@ fn test_diff_check_reports_bad_base_and_directory() {
 	assert missing.code == 'working_directory_not_found'
 }
 
+fn test_diff_check_counts_each_short_rename() {
+	root := os.join_path(os.temp_dir(), 'factory-doctor-rename-${os.getpid()}')
+	os.rmdir_all(root) or {}
+	os.mkdir_all(root) or { panic(err) }
+	defer {
+		os.rmdir_all(root) or {}
+	}
+	git := 'git -C ${os.quoted_path(root)} -c user.name=test -c user.email=test@example.com'
+	os.write_file(os.join_path(root, 'go'), 'first file\n') or { panic(err) }
+	os.write_file(os.join_path(root, 'id'), 'second file\n') or { panic(err) }
+	for command in ['git init -q -b main ${os.quoted_path(root)}', '${git} add .',
+		'${git} commit -q -m base', '${git} checkout -q -b feature', '${git} mv go run',
+		'${git} mv id ids', '${git} commit -q -m rename'] {
+		assert os.execute(command).exit_code == 0, command
+	}
+	result := check_diff(diff_check(root, 1, 0, []))
+	assert result.code == 'diff_too_large', result.message
+	assert result.message.starts_with('2 files, 0 lines changed against main')
+}
+
 fn test_diff_config_validation() {
 	base := Config{
 		checks: [
