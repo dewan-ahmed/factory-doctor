@@ -135,25 +135,36 @@ fn check_git_remote(check CheckConfig) Outcome {
 }
 
 fn check_http(check CheckConfig) Outcome {
-	header := build_http_header(check.headers) or {
+	auth := build_http_auth(check.headers) or {
 		return Outcome{
-			code:    'missing_env'
+			code:    if err.msg().contains('environment variable') {
+				'missing_env'
+			} else {
+				'invalid_header'
+			}
 			message: err.msg()
 		}
 	}
-	trust := load_trust_bundle(check.ca_file) or {
-		if check.target.to_lower().starts_with('https://') {
-			return Outcome{
-				code:    'tls_verification_failed'
-				message: err.msg()
-			}
-		}
+	// On Windows, V uses SChannel, which verifies against the system store and
+	// ignores a PEM bundle.
+	trust := $if windows {
 		''
+	} $else {
+		load_trust_bundle(check.ca_file) or {
+			if check.target.to_lower().starts_with('https://') {
+				return Outcome{
+					code:    'tls_verification_failed'
+					message: err.msg()
+				}
+			}
+			''
+		}
 	}
 	response := http.fetch(
 		url:                    check.target
 		method:                 .get
-		header:                 header
+		header:                 auth.header
+		cookies:                auth.cookies
 		validate:               true
 		verify:                 trust
 		in_memory_verification: true
@@ -163,13 +174,20 @@ fn check_http(check CheckConfig) Outcome {
 		max_retries:            1
 		stop_receiving_limit:   2_048
 	) or {
-		code := http_error_code(err.msg())
+		message := redact(err.msg(), auth.secrets)
+		code := http_error_code(message)
 		return Outcome{
 			code:    code
-			message: if code == 'tls_verification_failed' {
-				'server certificate is not trusted; set ca_file for a private CA: ${err.msg()}'
-			} else {
-				err.msg()
+			message: match code {
+				'tls_verification_failed' {
+					'server certificate is not trusted; set ca_file for a private CA: ${message}'
+				}
+				'tls_configuration_invalid' {
+					'could not load the CA bundle: ${message}'
+				}
+				else {
+					message
+				}
 			}
 		}
 	}

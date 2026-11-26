@@ -43,12 +43,30 @@ fn validate_config(config Config) ! {
 			validate_http_headers(check.headers) or {
 				return error('check "${check.name}" ${err.msg()}')
 			}
-			if check.ca_file != '' && (!os.is_file(check.ca_file) || !os.is_readable(check.ca_file)) {
-				return error('check "${check.name}" ca_file is not a readable file')
+			if check.headers.len > 0 && !check.target.to_lower().starts_with('https://') {
+				return error('check "${check.name}" headers require an https:// target')
+			}
+			if check.ca_file != '' {
+				validate_ca_file(check.ca_file) or {
+					return error('check "${check.name}" ${err.msg()}')
+				}
 			}
 		}
 		validate_network_check(check.kind, check.target, check.args) or {
 			return error('check "${check.name}" ${err.msg()}')
 		}
+	}
+}
+
+fn validate_ca_file(path string) ! {
+	$if windows {
+		return error('ca_file is not supported on Windows; add the CA to the Windows certificate store')
+	}
+	if !os.is_file(path) || !os.is_readable(path) {
+		return error('ca_file is not a readable file')
+	}
+	content := os.read_file(path) or { return error('ca_file is not a readable file') }
+	if !content.contains('-----BEGIN CERTIFICATE-----') {
+		return error('ca_file does not contain a PEM certificate')
 	}
 }

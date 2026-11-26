@@ -96,10 +96,17 @@ reference environment variables:
 `${env:NAME}` is expanded only in header values. An unset or empty variable
 fails the check with `missing_env` and names the variable. Header values never
 appear in human or JSON output. Literal values work, but keep secrets out of
-configuration files. Checks with headers do not follow redirects, so a
-redirect cannot carry a credential to another host. An untrusted certificate
-fails with `tls_verification_failed`, and an unreadable `ca_file` fails
-configuration validation with exit code `2`.
+configuration files. Headers require an `https://` target, and checks with
+headers do not follow redirects, so a credential is never sent in plaintext or
+carried to another host. Values are also scrubbed from error messages. A
+`Cookie` header is sent as request cookies (`"Cookie": "session=${env:SESSION}"`).
+Up to 32 headers are supported.
+
+An untrusted certificate fails with `tls_verification_failed`, and a CA bundle
+that cannot be loaded fails with `tls_configuration_invalid`. A `ca_file` that
+is unreadable or has no PEM certificate fails configuration validation with
+exit code `2`. On Windows, HTTPS checks use the Windows certificate store and
+`ca_file` is not supported; add a private CA to the store instead.
 
 ## Network checks
 

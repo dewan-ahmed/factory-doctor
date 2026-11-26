@@ -57,7 +57,7 @@ fn test_report_never_contains_header_values() {
 	result := run_check(CheckConfig{
 		name:       'Registry'
 		kind:       'http'
-		target:     'http://127.0.0.1:1/v2/'
+		target:     'https://127.0.0.1:1/v2/'
 		timeout_ms: 500
 		headers:    {
 			'Authorization': 'Bearer \${env:FD_TEST_TOKEN}'
@@ -115,7 +115,7 @@ fn test_config_without_new_fields_still_decodes() {
 
 fn test_load_trust_bundle_appends_ca_file() {
 	path := os.join_path(os.temp_dir(), 'factory-doctor-test-ca.pem')
-	os.write_file(path, 'CORPORATE-CA')!
+	os.write_file(path, '-----BEGIN CERTIFICATE-----\nCORPORATE-CA')!
 	defer {
 		os.rm(path) or {}
 	}
@@ -126,4 +126,83 @@ fn test_load_trust_bundle_appends_ca_file() {
 fn test_http_error_code_detects_tls_verification() {
 	assert http_error_code('net.mbedtls SSLConn.dial, mbedtls_ssl_handshake failed 3; ret: -9984') == 'tls_verification_failed'
 	assert http_error_code('connection refused') == 'http_request_failed'
+}
+
+fn test_validate_config_rejects_headers_over_plain_http() {
+	config := Config{
+		checks: [
+			CheckConfig{
+				name:    'Registry'
+				kind:    'http'
+				target:  'http://registry.example.com/v2/'
+				headers: {
+					'Authorization': 'Bearer x'
+				}
+			},
+		]
+	}
+	if _ := validate_config(config) {
+		assert false, 'expected validation error'
+	} else {
+		assert err.msg().contains('https://')
+	}
+}
+
+fn test_validate_http_headers_caps_header_count() {
+	mut headers := map[string]string{}
+	for index in 0 .. max_custom_headers + 1 {
+		headers['X-Header-${index}'] = 'x'
+	}
+	if _ := validate_http_headers(headers) {
+		assert false, 'expected too many headers to be rejected'
+	}
+}
+
+fn test_cookie_header_becomes_request_cookies() {
+	os.setenv('FD_TEST_SESSION', 'abc123', true)
+	auth := build_http_auth({
+		'Cookie': 'session=\${env:FD_TEST_SESSION}; theme=dark'
+	})!
+	assert auth.cookies == {
+		'session': 'abc123'
+		'theme':   'dark'
+	}
+	assert !auth.header.contains_custom('Cookie')
+	if _ := validate_http_headers({
+		'Cookie': 'not-a-pair'
+	})
+	{
+		assert false, 'expected malformed cookie to be rejected'
+	}
+}
+
+fn test_redact_scrubs_header_values() {
+	assert redact('server echoed Bearer abc and abc', ['Bearer abc', 'abc']) == 'server echoed [redacted] and [redacted]'
+}
+
+fn test_validate_config_rejects_ca_file_without_certificate() {
+	path := os.join_path(os.temp_dir(), 'factory-doctor-not-a-ca.pem')
+	os.write_file(path, 'garbage')!
+	defer {
+		os.rm(path) or {}
+	}
+	config := Config{
+		checks: [
+			CheckConfig{
+				name:    'Registry'
+				kind:    'http'
+				target:  'https://registry.example.com'
+				ca_file: path
+			},
+		]
+	}
+	if _ := validate_config(config) {
+		assert false, 'expected validation error'
+	} else {
+		assert err.msg().contains('PEM')
+	}
+}
+
+fn test_http_error_code_flags_bad_trust_configuration() {
+	assert http_error_code('net.mbedtls SSLConn.init, failed to set certificates, ret: -8576') == 'tls_configuration_invalid'
 }
