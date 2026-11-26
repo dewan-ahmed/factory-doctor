@@ -151,3 +151,47 @@ fn test_wait_for_attempt_times_out() {
 	assert !outcome.passed
 	assert outcome.code == 'tcp_connect_timeout'
 }
+
+fn test_bootstrap_rejects_invalid_network_verification() {
+	for verify in [Verification{
+		kind:   'tcp'
+		target: 'db.example.com'
+	}, Verification{
+		kind:   'tcp'
+		target: 'db.example.com:5432'
+		args:   ['x']
+	}, Verification{
+		kind:   'dns'
+		target: 'db.example.com'
+		args:   ['ipv5']
+	}] {
+		profile := BootstrapProfile{
+			name:         'Test'
+			requirements: [
+				Requirement{
+					id:       'network.db'
+					category: 'network'
+					name:     'Database'
+					guidance: 'Open the port.'
+					verify:   verify
+				},
+			]
+		}
+		if _ := validate_bootstrap_profile(profile) {
+			assert false, 'expected ${verify.kind} ${verify.target} to be rejected'
+		}
+	}
+}
+
+fn test_tcp_check_tries_every_resolved_address() {
+	mut listener := net.listen_tcp(.ip, '127.0.0.1:0') or { panic(err) }
+	port := listener.addr() or { panic(err) }.port() or { panic(err) }
+	result := run_check(CheckConfig{
+		name:       'localhost'
+		kind:       'tcp'
+		target:     'localhost:${port}'
+		timeout_ms: 2_000
+	})
+	listener.close() or {}
+	assert result.status == 'pass', result.message
+}

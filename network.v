@@ -62,6 +62,21 @@ fn validate_dns_families(families []string) ! {
 	}
 }
 
+// validate_network_check rejects tcp and dns settings that would otherwise be
+// ignored or fail only at run time.
+fn validate_network_check(kind string, target string, args []string) ! {
+	if kind == 'tcp' {
+		parse_tcp_target(target) or { return error('has invalid tcp target: ${err.msg()}') }
+		if args.len > 0 {
+			return error('tcp checks do not take args')
+		}
+	}
+	if kind == 'dns' {
+		validate_dns_target(target) or { return error('has invalid dns target: ${err.msg()}') }
+		validate_dns_families(args)!
+	}
+}
+
 fn join_host_port(host string, port int) string {
 	return if host.contains(':') { '[${host}]:${port}' } else { '${host}:${port}' }
 }
@@ -79,34 +94,62 @@ fn check_tcp(check CheckConfig) Outcome {
 }
 
 fn dial_tcp_attempt(host string, port int, result chan NetworkAttempt) {
-	addrs := net.resolve_addrs_fuzzy(join_host_port(host, port), .tcp) or {
+	target := join_host_port(host, port)
+	addrs := net.resolve_addrs_fuzzy(target, .tcp) or {
 		result <- NetworkAttempt{
 			code:    'dns_resolution_failed'
 			message: 'could not resolve host: ${err.msg()}'
 		}
 		return
 	}
-	mut refused := false
-	mut last_error := 'no addresses returned'
-	for addr in addrs {
-		mut conn := net.dial_tcp(addr.str()) or {
-			if err.msg().contains('socket error: ${int(C.ECONNREFUSED)};') {
-				refused = true
-			}
-			last_error = err.msg().all_after_last('\t').trim_space()
-			continue
-		}
-		conn.close() or {}
+	if addrs.len == 0 {
 		result <- NetworkAttempt{
-			passed:  true
-			code:    'ok'
-			message: 'connected to ${addr}'
+			code:    'dns_resolution_failed'
+			message: 'could not resolve host: no addresses returned'
 		}
 		return
+	}
+	// Dial every address at once so one address that drops packets cannot use
+	// up the timeout before a reachable one is tried. Addr.str() drops IPv6
+	// zone IDs, so scoped targets are dialed by name.
+	dials := chan NetworkAttempt{cap: addrs.len}
+	for addr in addrs {
+		spawn dial_tcp_address(if host.contains('%') { target } else { addr.str() }, dials)
+	}
+	mut refused := false
+	mut last_error := ''
+	for _ in 0 .. addrs.len {
+		attempt := <-dials
+		if attempt.passed {
+			result <- attempt
+			return
+		}
+		refused = refused || attempt.code == 'tcp_connect_refused'
+		last_error = attempt.message
 	}
 	result <- NetworkAttempt{
 		code:    if refused { 'tcp_connect_refused' } else { 'tcp_connect_failed' }
 		message: 'could not connect to any of ${addrs.len} address(es): ${last_error}'
+	}
+}
+
+fn dial_tcp_address(address string, dials chan NetworkAttempt) {
+	mut conn := net.dial_tcp(address) or {
+		dials <- NetworkAttempt{
+			code:    if err.msg().contains('socket error: ${int(C.ECONNREFUSED)};') {
+				'tcp_connect_refused'
+			} else {
+				'tcp_connect_failed'
+			}
+			message: err.msg().all_after_last('\t').trim_space()
+		}
+		return
+	}
+	conn.close() or {}
+	dials <- NetworkAttempt{
+		passed:  true
+		code:    'ok'
+		message: 'connected to ${address}'
 	}
 }
 

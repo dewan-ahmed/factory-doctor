@@ -129,6 +129,9 @@ fn validate_bootstrap_profile(profile BootstrapProfile) ! {
 		if verify.kind == 'http' && verify.expect_status !in 100..600 {
 			return error('${label} verify expect_status must be an HTTP status code')
 		}
+		validate_network_check(verify.kind, verify.target, verify.args) or {
+			return error('${label} verify ${err.msg()}')
+		}
 	}
 }
 

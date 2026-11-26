@@ -36,21 +36,8 @@ fn validate_config(config Config) ! {
 		if check.kind == 'http' && check.expect_status !in 100..600 {
 			return error('check "${check.name}" expect_status must be an HTTP status code')
 		}
-		if check.kind == 'tcp' {
-			parse_tcp_target(check.target) or {
-				return error('check "${check.name}" has invalid tcp target: ${err.msg()}')
-			}
-			if check.args.len > 0 {
-				return error('check "${check.name}" tcp checks do not take args')
-			}
-		}
-		if check.kind == 'dns' {
-			validate_dns_target(check.target) or {
-				return error('check "${check.name}" has invalid dns target: ${err.msg()}')
-			}
-			validate_dns_families(check.args) or {
-				return error('check "${check.name}" ${err.msg()}')
-			}
+		validate_network_check(check.kind, check.target, check.args) or {
+			return error('check "${check.name}" ${err.msg()}')
 		}
 	}
 }
