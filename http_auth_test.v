@@ -199,7 +199,11 @@ fn test_validate_config_rejects_ca_file_without_certificate() {
 	if _ := validate_config(config) {
 		assert false, 'expected validation error'
 	} else {
-		assert err.msg().contains('PEM')
+		$if windows {
+			assert err.msg().contains('not supported on Windows'), err.msg()
+		} $else {
+			assert err.msg().contains('PEM'), err.msg()
+		}
 	}
 }
 
