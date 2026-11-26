@@ -277,4 +277,19 @@ fn test_glob_match_for_excludes() {
 	assert glob_match('*.lock', 'go.lock')
 	assert glob_match('testdata/**', 'testdata/a/b.json')
 	assert !glob_match('testdata/**', 'src/testdata.v')
+	assert glob_match('**/generated/**', 'src/generated/a.v')
+	assert glob_match('**/generated/**', 'generated/a.v')
+	assert !glob_match('**/generated/**', 'src/not-generated/a.v')
+}
+
+fn test_parse_numstat_handles_renames_and_binary() {
+	entries := parse_numstat('1\t2\ta.v\x00-\t-\tbin.dat\x00' +
+		'0\t3\t\x00old.lock\x00new/name.txt\x00')
+	assert entries.len == 3
+	assert entries[0].paths == ['a.v']
+	assert entries[0].changed == 3
+	assert entries[1].binary
+	assert entries[2].paths == ['old.lock', 'new/name.txt']
+	assert diff_excluded('*.lock', entries[2].paths)
+	assert !diff_excluded('*.lock', entries[0].paths)
 }
