@@ -16,16 +16,21 @@ fn main() {
 		print_help()
 		exit(2)
 	}
-	config_path, output_json := parse_check_args(os.args[2..]) or {
+	options := parse_check_args(os.args[2..]) or {
 		eprintln('factory-doctor: ${err}')
 		exit(2)
 	}
-	config := load_config(config_path) or {
+	loaded := load_config(options.config_path) or {
 		eprintln('factory-doctor: ${err}')
 		exit(2)
+	}
+	config := Config{
+		...loaded
+		concurrency: if options.concurrency > 0 { options.concurrency } else { loaded.concurrency }
+		deadline_ms: if options.deadline_ms >= 0 { options.deadline_ms } else { loaded.deadline_ms }
 	}
 	report := run_checks(config)
-	if output_json {
+	if options.output_json {
 		println(json.encode(report))
 	} else {
 		print_report(report)
@@ -35,9 +40,19 @@ fn main() {
 	}
 }
 
-fn parse_check_args(args []string) !(string, bool) {
+struct CheckOptions {
+	config_path string = 'factory-doctor.json'
+	output_json bool
+	// concurrency and deadline_ms override the config file when set.
+	concurrency int
+	deadline_ms int = -1
+}
+
+fn parse_check_args(args []string) !CheckOptions {
 	mut config_path := 'factory-doctor.json'
 	mut output_json := false
+	mut concurrency := 0
+	mut deadline_ms := -1
 	mut index := 0
 	for index < args.len {
 		match args[index] {
@@ -52,12 +67,40 @@ fn parse_check_args(args []string) !(string, bool) {
 				output_json = true
 				index++
 			}
+			'--concurrency' {
+				concurrency = parse_int_flag(args, index, 1)!
+				index += 2
+			}
+			'--deadline-ms' {
+				deadline_ms = parse_int_flag(args, index, 0)!
+				index += 2
+			}
 			else {
 				return error('unknown option "${args[index]}"')
 			}
 		}
 	}
-	return config_path, output_json
+	return CheckOptions{
+		config_path: config_path
+		output_json: output_json
+		concurrency: concurrency
+		deadline_ms: deadline_ms
+	}
+}
+
+fn parse_int_flag(args []string, index int, minimum int) !int {
+	if index + 1 >= args.len {
+		return error('${args[index]} requires a number')
+	}
+	raw := args[index + 1]
+	if raw == '' || !raw.bytes().all(it.is_digit()) || raw.len > 9 {
+		return error('${args[index]} must be a whole number')
+	}
+	value := raw.int()
+	if value < minimum {
+		return error('${args[index]} must be at least ${minimum}')
+	}
+	return value
 }
 
 fn run_bootstrap_command(args []string) int {
@@ -147,17 +190,22 @@ fn parse_bootstrap_init_args(args []string) !(string, bool) {
 
 fn print_report(report Report) {
 	for check in report.checks {
-		println('${check.status.to_upper():-4}  ${check.name} (${check.duration_ms} ms)  ${check.message}')
+		label := if check.status == 'skipped' { 'SKIP' } else { check.status.to_upper() }
+		println('${label:-4}  ${check.name} (${check.duration_ms} ms)  ${check.message}')
 	}
 	println('')
-	println('${report.status.to_upper()}: ${report.summary.passed} passed, ${report.summary.warned} warned, ${report.summary.failed} failed')
+	mut line := '${report.status.to_upper()}: ${report.summary.passed} passed, ${report.summary.warned} warned, ${report.summary.failed} failed'
+	if report.summary.skipped > 0 {
+		line += ', ${report.summary.skipped} skipped'
+	}
+	println('${line} in ${report.duration_ms} ms')
 }
 
 fn print_help() {
 	println('factory-doctor checks whether a software factory is ready before starting costly work.')
 	println('')
 	println('Usage:')
-	println('  factory-doctor check [--config path] [--json]')
+	println('  factory-doctor check [--config path] [--json] [--concurrency n] [--deadline-ms n]')
 	println('  factory-doctor bootstrap [--profile path] [--json] [--strict]')
 	println('  factory-doctor bootstrap init [--output path] [--force]')
 	println('')

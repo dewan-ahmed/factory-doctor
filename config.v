@@ -17,6 +17,12 @@ fn validate_config(config Config) ! {
 	if config.checks.len == 0 {
 		return error('config must contain at least one check')
 	}
+	if config.concurrency < 1 {
+		return error('concurrency must be at least 1')
+	}
+	if config.deadline_ms < 0 {
+		return error('deadline_ms must not be negative')
+	}
 	for index, check in config.checks {
 		if check.name.trim_space() == '' {
 			return error('check ${index + 1} is missing a name')
