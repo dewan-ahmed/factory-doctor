@@ -19,6 +19,18 @@ version 1.0.
 - `git_remote`: confirm a Git remote and optional ref are accessible.
 - `file`: confirm a local file or directory is readable.
 - `env`: confirm an environment variable is set without printing its value.
+- `diff`: fail when the change against a base ref is too large to review.
+  `target` is the base ref, and at least one of `max_files` or `max_lines`
+  (added plus deleted) is required. The check compares the merge base with
+  the working tree, so uncommitted tracked changes count too. Binary files
+  and `exclude` globs (`*.lock`, `testdata/**`) are skipped. A failure has
+  code `diff_too_large` and names the three largest files, so an agent knows
+  what to split before it opens a PR:
+
+  ```json
+  {"name": "reviewable-change", "kind": "diff", "target": "origin/main",
+   "max_files": 20, "max_lines": 400, "exclude": ["*.lock"]}
+  ```
 
 Checks marked `"critical": false` produce warnings instead of a failing exit
 code.

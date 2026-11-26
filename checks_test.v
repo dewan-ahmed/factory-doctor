@@ -1,5 +1,6 @@
 module main
 
+import os
 import net.http
 
 fn test_validate_config_accepts_supported_checks() {
@@ -182,4 +183,98 @@ fn (h NotFoundHandler) handle(req http.Request) http.Response {
 	}
 	res.set_status(.not_found)
 	return res
+}
+
+fn git_fixture() string {
+	root := os.join_path(os.temp_dir(), 'factory-doctor-diff-${os.getpid()}')
+	os.rmdir_all(root) or {}
+	os.mkdir_all(root) or { panic(err) }
+	git := 'git -C ${os.quoted_path(root)} -c user.name=test -c user.email=test@example.com'
+	os.write_file(os.join_path(root, 'main.txt'), 'base\n') or { panic(err) }
+	for command in ['git init -q -b main ${os.quoted_path(root)}', '${git} add .',
+		'${git} commit -q -m base', '${git} checkout -q -b feature'] {
+		assert os.execute(command).exit_code == 0, command
+	}
+	os.write_file(os.join_path(root, 'main.txt'), 'base\none\ntwo\nthree\n') or { panic(err) }
+	os.write_file(os.join_path(root, 'go.lock'), 'a\nb\nc\nd\ne\nf\n') or { panic(err) }
+	os.write_file(os.join_path(root, 'bin.dat'), [u8(0), 1, 2].bytestr()) or { panic(err) }
+	assert os.execute('${git} add . && ${git} commit -q -m change').exit_code == 0
+	os.write_file(os.join_path(root, 'main.txt'), 'base\none\ntwo\nthree\nfour\n') or { panic(err) }
+	return root
+}
+
+fn diff_check(root string, max_files int, max_lines int, exclude []string) CheckConfig {
+	return CheckConfig{
+		name:              'reviewable'
+		kind:              'diff'
+		target:            'main'
+		working_directory: root
+		max_files:         max_files
+		max_lines:         max_lines
+		exclude:           exclude
+	}
+}
+
+fn test_diff_check_counts_committed_and_uncommitted_changes() {
+	root := git_fixture()
+	defer {
+		os.rmdir_all(root) or {}
+	}
+	ok := check_diff(diff_check(root, 5, 100, []))
+	assert ok.passed
+	assert ok.message == '2 files, 10 lines changed against main'
+	over := check_diff(diff_check(root, 0, 5, []))
+	assert !over.passed
+	assert over.code == 'diff_too_large'
+	assert over.message.contains('largest: go.lock (6), main.txt (4)')
+	excluded := check_diff(diff_check(root, 1, 5, ['*.lock']))
+	assert excluded.passed
+	assert excluded.message == '1 files, 4 lines changed against main'
+}
+
+fn test_diff_check_reports_bad_base_and_directory() {
+	root := git_fixture()
+	defer {
+		os.rmdir_all(root) or {}
+	}
+	bad := check_diff(CheckConfig{ ...diff_check(root, 1, 0, []), target: 'no-such-ref' })
+	assert bad.code == 'command_failed'
+	missing := check_diff(diff_check('/nonexistent/repo', 1, 0, []))
+	assert missing.code == 'working_directory_not_found'
+}
+
+fn test_diff_config_validation() {
+	base := Config{
+		checks: [
+			CheckConfig{
+				name:   'reviewable'
+				kind:   'diff'
+				target: 'origin/main'
+			},
+		]
+	}
+	if _ := validate_config(base) {
+		assert false, 'expected missing limits to fail'
+	}
+	if _ := validate_config(Config{
+		checks: [
+			CheckConfig{
+				...base.checks[0]
+				max_lines: 10
+				target:    '--output=x'
+			},
+		]
+	})
+	{
+		assert false, 'expected option-like target to fail'
+	}
+	validate_config(Config{
+		checks: [CheckConfig{ ...base.checks[0], max_lines: 10 }]
+	}) or { assert false, err.msg() }
+}
+
+fn test_glob_match_for_excludes() {
+	assert glob_match('*.lock', 'go.lock')
+	assert glob_match('testdata/**', 'testdata/a/b.json')
+	assert !glob_match('testdata/**', 'src/testdata.v')
 }
