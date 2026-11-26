@@ -131,17 +131,62 @@ fn check_git_remote(check CheckConfig) Outcome {
 }
 
 fn check_http(check CheckConfig) Outcome {
+	auth := build_http_auth(check.headers) or {
+		return Outcome{
+			code:    if err.msg().contains('environment variable') {
+				'missing_env'
+			} else {
+				'invalid_header'
+			}
+			message: err.msg()
+		}
+	}
+	// On Windows, V uses SChannel, which verifies against the system store and
+	// ignores a PEM bundle.
+	trust := $if windows {
+		''
+	} $else {
+		load_trust_bundle(check.ca_file) or {
+			if check.target.to_lower().starts_with('https://') {
+				return Outcome{
+					code:    'tls_verification_failed'
+					message: err.msg()
+				}
+			}
+			''
+		}
+	}
 	response := http.fetch(
-		url:                  check.target
-		method:               .get
-		read_timeout:         i64(check.timeout_ms) * time.millisecond
-		write_timeout:        i64(check.timeout_ms) * time.millisecond
-		max_retries:          1
-		stop_receiving_limit: 2_048
-	) or { return Outcome{
-		code:    'http_request_failed'
-		message: err.msg()
-	} }
+		url:                    check.target
+		method:                 .get
+		header:                 auth.header
+		cookies:                auth.cookies
+		validate:               true
+		verify:                 trust
+		in_memory_verification: true
+		allow_redirect:         check.headers.len == 0
+		read_timeout:           i64(check.timeout_ms) * time.millisecond
+		write_timeout:          i64(check.timeout_ms) * time.millisecond
+		max_retries:            1
+		stop_receiving_limit:   2_048
+	) or {
+		code := http_error_code(err.msg())
+		message := redact(err.msg(), auth.secrets)
+		return Outcome{
+			code:    code
+			message: match code {
+				'tls_verification_failed' {
+					'server certificate is not trusted; set ca_file for a private CA: ${message}'
+				}
+				'tls_configuration_invalid' {
+					'could not load the CA bundle: ${message}'
+				}
+				else {
+					message
+				}
+			}
+		}
+	}
 	if response.status_code != check.expect_status {
 		return Outcome{
 			code:    'unexpected_http_status'

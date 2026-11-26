@@ -83,6 +83,43 @@ Exit codes are stable:
 - `1`: at least one critical check failed.
 - `2`: invalid arguments or configuration.
 
+## Authenticated HTTP checks
+
+`http` checks verify TLS certificates against the system CA bundle, or the
+file named by `SSL_CERT_FILE`. To trust a private or corporate CA, for example
+behind a TLS inspection proxy, set `ca_file` to a PEM bundle. It is added to
+the system bundle, so public endpoints keep working.
+
+To prove that the factory's credentials work, send headers whose values
+reference environment variables:
+
+```json
+{
+  "name": "Artifact registry",
+  "kind": "http",
+  "target": "https://registry.example.com/v2/",
+  "headers": { "Authorization": "Bearer ${env:REGISTRY_TOKEN}" },
+  "ca_file": "/etc/ssl/certs/corp-ca.pem",
+  "expect_status": 200,
+  "timeout_ms": 3000
+}
+```
+
+`${env:NAME}` is expanded only in header values. An unset or empty variable
+fails the check with `missing_env` and names the variable. Header values never
+appear in human or JSON output. Literal values work, but keep secrets out of
+configuration files. Headers require an `https://` target, and checks with
+headers do not follow redirects, so a credential is never sent in plaintext or
+carried to another host. Values are also scrubbed from error messages. A
+`Cookie` header is sent as request cookies (`"Cookie": "session=${env:SESSION}"`).
+Up to 32 headers are supported.
+
+An untrusted certificate fails with `tls_verification_failed`, and a CA bundle
+that cannot be loaded fails with `tls_configuration_invalid`. A `ca_file` that
+is unreadable or has no PEM certificate fails configuration validation with
+exit code `2`. On Windows, HTTPS checks use the Windows certificate store and
+`ca_file` is not supported; add a private CA to the store instead.
+
 ## Network checks
 
 `tcp` and `dns` checks catch firewall, egress allowlist, private DNS zone, and
