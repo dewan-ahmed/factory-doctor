@@ -14,7 +14,7 @@ fn run_checks(config Config) Report {
 
 fn run_check(check CheckConfig) CheckResult {
 	started := time.now()
-	outcome := match check.kind {
+	observed := match check.kind {
 		'http' {
 			check_http(check)
 		}
@@ -36,6 +36,7 @@ fn run_check(check CheckConfig) CheckResult {
 		}
 	}
 
+	outcome := apply_expectation(check.expect, observed)
 	duration := time.since(started).milliseconds()
 	status := if outcome.passed {
 		'pass'
@@ -48,10 +49,30 @@ fn run_check(check CheckConfig) CheckResult {
 		name:        check.name
 		kind:        check.kind
 		target:      safe_target(check.kind, check.target)
+		expect:      check.expect
 		status:      status
 		code:        outcome.code
 		message:     outcome.message
 		duration_ms: duration
+	}
+}
+
+// apply_expectation turns a check into a denial assertion when expect is
+// "fail", so a config can prove that a sandbox blocks access.
+fn apply_expectation(expect string, observed Outcome) Outcome {
+	if expect != 'fail' {
+		return observed
+	}
+	if observed.passed {
+		return Outcome{
+			code:    'unexpectedly_allowed'
+			message: 'expected failure but check passed: ${observed.message}'
+		}
+	}
+	return Outcome{
+		passed:  true
+		code:    'blocked_as_expected'
+		message: 'failed as expected: ${observed.code}'
 	}
 }
 

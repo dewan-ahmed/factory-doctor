@@ -22,6 +22,22 @@ version 1.0.
 Checks marked `"critical": false` produce warnings instead of a failing exit
 code.
 
+Checks marked `"expect": "fail"` pass only when the underlying check fails.
+Use them to prove that a sandbox or CI runner blocks access it should not
+have, such as host credentials or unapproved network egress:
+
+```json
+{
+  "name": "Host SSH keys are hidden",
+  "kind": "file",
+  "target": "/home/agent/.ssh",
+  "expect": "fail"
+}
+```
+
+A denied check reports `blocked_as_expected`. A check that unexpectedly
+succeeds reports `unexpectedly_allowed` and fails the run when critical.
+
 ## Build
 
 Install the V version in `.v-version`, then run:

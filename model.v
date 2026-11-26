@@ -12,9 +12,10 @@ pub:
 	kind              string
 	target            string
 	args              []string
-	expect_status     int  = 200
-	timeout_ms        int  = 3_000
-	critical          bool = true
+	expect_status     int    = 200
+	timeout_ms        int    = 3_000
+	critical          bool   = true
+	expect            string = 'pass'
 	working_directory string
 }
 
@@ -23,6 +24,7 @@ pub:
 	name        string
 	kind        string
 	target      string
+	expect      string
 	status      string
 	code        string
 	message     string
