@@ -30,6 +30,9 @@ fn validate_config(config Config) ! {
 		if check.timeout_ms < 1 {
 			return error('check "${check.name}" timeout_ms must be positive')
 		}
+		if check.expect !in ['pass', 'fail'] {
+			return error('check "${check.name}" expect must be "pass" or "fail"')
+		}
 		if check.kind == 'http' && check.expect_status !in 100..600 {
 			return error('check "${check.name}" expect_status must be an HTTP status code')
 		}
