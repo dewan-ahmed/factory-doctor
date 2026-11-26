@@ -2,6 +2,8 @@ module main
 
 import time
 
+const deadline_grace = 500 * time.millisecond
+
 struct IndexedResult {
 	index  int
 	result CheckResult
@@ -11,10 +13,14 @@ struct IndexedResult {
 // in configuration order. With a deadline_ms, each check's timeout is clipped
 // to the time left, and checks that are still running or not yet started when
 // the deadline passes are reported as skipped with code deadline_exceeded.
+// The run returns at most deadline_grace after the deadline.
 fn run_checks(config Config) Report {
 	started := time.now()
 	has_deadline := config.deadline_ms > 0
 	deadline := started.add(config.deadline_ms * time.millisecond)
+	// Workers clip timeouts to the deadline and mark late results as skipped.
+	// The grace period lets them kill commands and report before the CLI exits.
+	collect_until := deadline.add(deadline_grace)
 	jobs := chan int{cap: config.checks.len}
 	for index in 0 .. config.checks.len {
 		jobs <- index
@@ -38,7 +44,7 @@ fn run_checks(config Config) Report {
 			received[item.index] = true
 			continue
 		}
-		remaining := deadline - time.now()
+		remaining := collect_until - time.now()
 		if remaining <= 0 {
 			break
 		}

@@ -50,7 +50,6 @@ fn test_deadline_skips_running_and_pending_checks_and_kills_process() {
 	assert report.checks[2].status == 'skipped'
 	assert report.summary.skipped == 2
 	assert report.status == 'fail'
-	time.sleep(200 * time.millisecond)
 	pgrep := os.execute('pgrep -f "[s]leep ${marker}"')
 	assert pgrep.exit_code != 0, 'sleep process was not killed: ${pgrep.output}'
 }
@@ -100,4 +99,16 @@ fn test_validate_config_rejects_bad_scheduling_fields() {
 			assert false, 'expected validation error'
 		}
 	}
+}
+
+fn test_result_published_before_deadline_is_kept() {
+	report := run_checks(Config{
+		concurrency: 2
+		deadline_ms: 400
+		checks:      [sleep_check('finishes in time', '0.35', true),
+			sleep_check('too slow', '5', false)]
+	})
+	assert report.checks[0].status == 'pass'
+	assert report.checks[1].status == 'skipped'
+	assert report.status == 'warn'
 }

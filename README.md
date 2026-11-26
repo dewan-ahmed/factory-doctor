@@ -117,7 +117,8 @@ deadline passes, each check's `timeout_ms` is clipped to the time left, running
 commands are killed with their process group, and checks that are still
 running or never started report status `skipped` with code
 `deadline_exceeded`. A skipped critical check fails the run, and a skipped
-non-critical check warns. Exit codes do not change.
+non-critical check warns. The run returns at most 500 ms after the deadline,
+which gives killed commands time to exit. Exit codes do not change.
 
 The JSON report adds `duration_ms` for the whole run, `critical` on each check,
 and `skipped` in `summary`:
