@@ -4,14 +4,6 @@ import net.http
 import os
 import time
 
-fn run_checks(config Config) Report {
-	mut results := []CheckResult{cap: config.checks.len}
-	for check in config.checks {
-		results << run_check(check)
-	}
-	return build_report(results)
-}
-
 fn run_check(check CheckConfig) CheckResult {
 	started := time.now()
 	observed := match check.kind {
@@ -57,6 +49,7 @@ fn run_check(check CheckConfig) CheckResult {
 		code:        outcome.code
 		message:     outcome.message
 		duration_ms: duration
+		critical:    check.critical
 	}
 }
 
@@ -253,28 +246,41 @@ fn build_report(results []CheckResult) Report {
 	mut passed := 0
 	mut warned := 0
 	mut failed := 0
+	mut skipped := 0
+	mut skipped_critical := false
 	for result in results {
 		match result.status {
-			'pass' { passed++ }
-			'warn' { warned++ }
-			'fail' { failed++ }
+			'pass' {
+				passed++
+			}
+			'warn' {
+				warned++
+			}
+			'fail' {
+				failed++
+			}
+			'skipped' {
+				skipped++
+				skipped_critical = skipped_critical || result.critical
+			}
 			else {}
 		}
 	}
 	return Report{
-		status:  if failed > 0 {
+		status:  if failed > 0 || skipped_critical {
 			'fail'
-		} else if warned > 0 {
+		} else if warned > 0 || skipped > 0 {
 			'warn'
 		} else {
 			'pass'
 		}
 		checks:  results
 		summary: Summary{
-			total:  results.len
-			passed: passed
-			warned: warned
-			failed: failed
+			total:   results.len
+			passed:  passed
+			warned:  warned
+			failed:  failed
+			skipped: skipped
 		}
 	}
 }

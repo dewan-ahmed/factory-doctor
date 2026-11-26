@@ -96,6 +96,54 @@ Command arguments are passed literally without a shell. Do not put credentials
 in configuration files. Use the target tool's environment or workload identity
 support.
 
+## Time budget
+
+Checks run one at a time by default. To run several at once and put a hard
+upper bound on the whole run, set `concurrency` and `deadline_ms` at the top
+level of the config, or pass `--concurrency N` and `--deadline-ms N`. Flags win
+over the config file.
+
+```json
+{
+  "version": 1,
+  "concurrency": 8,
+  "deadline_ms": 15000,
+  "checks": []
+}
+```
+
+Results keep configuration order whatever order checks finish in. When the
+deadline passes, each check's `timeout_ms` is clipped to the time left, running
+commands are killed with their process group, and checks that are still
+running or never started report status `skipped` with code
+`deadline_exceeded`. A skipped critical check fails the run, and a skipped
+non-critical check warns. Exit codes do not change.
+
+The JSON report adds `duration_ms` for the whole run, `critical` on each check,
+and `skipped` in `summary`:
+
+```json
+{
+  "version": 1,
+  "status": "fail",
+  "duration_ms": 15004,
+  "checks": [
+    {
+      "name": "Internal API",
+      "kind": "http",
+      "target": "https://api.internal.example.com/health",
+      "expect": "pass",
+      "status": "skipped",
+      "code": "deadline_exceeded",
+      "message": "deadline exceeded",
+      "duration_ms": 15000,
+      "critical": true
+    }
+  ],
+  "summary": { "total": 1, "passed": 0, "warned": 0, "failed": 0, "skipped": 1 }
+}
+```
+
 ## Bootstrap readiness
 
 `factory-doctor bootstrap` checks whether a new software factory has the setup

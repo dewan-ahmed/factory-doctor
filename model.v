@@ -2,8 +2,10 @@ module main
 
 pub struct Config {
 pub:
-	version int = 1
-	checks  []CheckConfig
+	version     int = 1
+	concurrency int = 1
+	deadline_ms int
+	checks      []CheckConfig
 }
 
 pub struct CheckConfig {
@@ -29,20 +31,23 @@ pub:
 	code        string
 	message     string
 	duration_ms i64
+	critical    bool
 }
 
 pub struct Summary {
 pub:
-	total  int
-	passed int
-	warned int
-	failed int
+	total   int
+	passed  int
+	warned  int
+	failed  int
+	skipped int
 }
 
 pub struct Report {
 pub:
-	version int = 1
-	status  string
-	checks  []CheckResult
-	summary Summary
+	version     int = 1
+	status      string
+	duration_ms i64
+	checks      []CheckResult
+	summary     Summary
 }
