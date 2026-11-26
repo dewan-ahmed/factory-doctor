@@ -19,6 +19,9 @@ pub:
 	working_directory string
 	headers           map[string]string
 	ca_file           string
+	max_files         int
+	max_lines         int
+	exclude           []string
 }
 
 pub struct CheckResult {

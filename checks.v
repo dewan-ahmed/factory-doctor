@@ -36,6 +36,9 @@ fn run_check(check CheckConfig) CheckResult {
 		'dns' {
 			check_dns(check)
 		}
+		'diff' {
+			check_diff(check)
+		}
 		else {
 			Outcome{
 				code:    'unsupported_check'
