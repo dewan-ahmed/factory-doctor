@@ -142,10 +142,13 @@ fn check_http(check CheckConfig) Outcome {
 		}
 	}
 	trust := load_trust_bundle(check.ca_file) or {
-		return Outcome{
-			code:    'tls_verification_failed'
-			message: err.msg()
+		if check.target.to_lower().starts_with('https://') {
+			return Outcome{
+				code:    'tls_verification_failed'
+				message: err.msg()
+			}
 		}
+		''
 	}
 	response := http.fetch(
 		url:                    check.target
