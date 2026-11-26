@@ -12,11 +12,24 @@ struct DiffStat {
 // large to review. It compares the merge base with the working tree, so
 // uncommitted tracked changes count too.
 fn check_diff(check CheckConfig) Outcome {
-	output := capture_command(check, 'git', ['diff', '--numstat', '-z', '--no-relative',
+	// Git writes to a file because V's Windows pipe reader can strip the NUL
+	// separators that -z output depends on.
+	report := os.join_path(os.temp_dir(),
+		'factory-doctor-numstat-${os.getpid()}-${time.now().unix_nano()}')
+	defer {
+		os.rm(report) or {}
+	}
+	capture_command(check, 'git', ['diff', '--numstat', '-z', '--no-relative', '--output=${report}',
 		'--merge-base', check.target]) or {
 		return Outcome{
 			code:    err.msg().all_before(':')
 			message: err.msg().all_after(': ')
+		}
+	}
+	output := os.read_file(report) or {
+		return Outcome{
+			code:    'command_failed'
+			message: 'could not read git diff output'
 		}
 	}
 	mut stats := []DiffStat{}

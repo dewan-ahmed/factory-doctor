@@ -198,7 +198,9 @@ fn git_fixture() string {
 	os.write_file(os.join_path(root, 'main.txt'), 'base\none\ntwo\nthree\n') or { panic(err) }
 	os.write_file(os.join_path(root, 'go.lock'), 'a\nb\nc\nd\ne\nf\n') or { panic(err) }
 	os.write_file(os.join_path(root, 'bin.dat'), [u8(0), 1, 2].bytestr()) or { panic(err) }
-	assert os.execute('${git} add . && ${git} commit -q -m change').exit_code == 0
+	for command in ['${git} add .', '${git} commit -q -m change'] {
+		assert os.execute(command).exit_code == 0, command
+	}
 	os.write_file(os.join_path(root, 'main.txt'), 'base\none\ntwo\nthree\nfour\n') or { panic(err) }
 	return root
 }
