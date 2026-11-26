@@ -17,6 +17,8 @@ pub:
 	critical          bool   = true
 	expect            string = 'pass'
 	working_directory string
+	headers           map[string]string
+	ca_file           string
 }
 
 pub struct CheckResult {

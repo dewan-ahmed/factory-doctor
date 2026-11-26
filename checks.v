@@ -135,17 +135,41 @@ fn check_git_remote(check CheckConfig) Outcome {
 }
 
 fn check_http(check CheckConfig) Outcome {
+	header := build_http_header(check.headers) or {
+		return Outcome{
+			code:    'missing_env'
+			message: err.msg()
+		}
+	}
+	trust := load_trust_bundle(check.ca_file) or {
+		return Outcome{
+			code:    'tls_verification_failed'
+			message: err.msg()
+		}
+	}
 	response := http.fetch(
-		url:                  check.target
-		method:               .get
-		read_timeout:         i64(check.timeout_ms) * time.millisecond
-		write_timeout:        i64(check.timeout_ms) * time.millisecond
-		max_retries:          1
-		stop_receiving_limit: 2_048
-	) or { return Outcome{
-		code:    'http_request_failed'
-		message: err.msg()
-	} }
+		url:                    check.target
+		method:                 .get
+		header:                 header
+		validate:               true
+		verify:                 trust
+		in_memory_verification: true
+		allow_redirect:         check.headers.len == 0
+		read_timeout:           i64(check.timeout_ms) * time.millisecond
+		write_timeout:          i64(check.timeout_ms) * time.millisecond
+		max_retries:            1
+		stop_receiving_limit:   2_048
+	) or {
+		code := http_error_code(err.msg())
+		return Outcome{
+			code:    code
+			message: if code == 'tls_verification_failed' {
+				'server certificate is not trusted; set ca_file for a private CA: ${err.msg()}'
+			} else {
+				err.msg()
+			}
+		}
+	}
 	if response.status_code != check.expect_status {
 		return Outcome{
 			code:    'unexpected_http_status'

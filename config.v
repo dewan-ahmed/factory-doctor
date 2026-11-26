@@ -36,6 +36,17 @@ fn validate_config(config Config) ! {
 		if check.kind == 'http' && check.expect_status !in 100..600 {
 			return error('check "${check.name}" expect_status must be an HTTP status code')
 		}
+		if check.kind != 'http' && (check.headers.len > 0 || check.ca_file != '') {
+			return error('check "${check.name}" headers and ca_file are only supported for http checks')
+		}
+		if check.kind == 'http' {
+			validate_http_headers(check.headers) or {
+				return error('check "${check.name}" ${err.msg()}')
+			}
+			if check.ca_file != '' && (!os.is_file(check.ca_file) || !os.is_readable(check.ca_file)) {
+				return error('check "${check.name}" ca_file is not a readable file')
+			}
+		}
 		validate_network_check(check.kind, check.target, check.args) or {
 			return error('check "${check.name}" ${err.msg()}')
 		}

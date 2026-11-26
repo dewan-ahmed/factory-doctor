@@ -71,6 +71,36 @@ Exit codes are stable:
 - `1`: at least one critical check failed.
 - `2`: invalid arguments or configuration.
 
+## Authenticated HTTP checks
+
+`http` checks verify TLS certificates against the system CA bundle, or the
+file named by `SSL_CERT_FILE`. To trust a private or corporate CA, for example
+behind a TLS inspection proxy, set `ca_file` to a PEM bundle. It is added to
+the system bundle, so public endpoints keep working.
+
+To prove that the factory's credentials work, send headers whose values
+reference environment variables:
+
+```json
+{
+  "name": "Artifact registry",
+  "kind": "http",
+  "target": "https://registry.example.com/v2/",
+  "headers": { "Authorization": "Bearer ${env:REGISTRY_TOKEN}" },
+  "ca_file": "/etc/ssl/certs/corp-ca.pem",
+  "expect_status": 200,
+  "timeout_ms": 3000
+}
+```
+
+`${env:NAME}` is expanded only in header values. An unset or empty variable
+fails the check with `missing_env` and names the variable. Header values never
+appear in human or JSON output. Literal values work, but keep secrets out of
+configuration files. Checks with headers do not follow redirects, so a
+redirect cannot carry a credential to another host. An untrusted certificate
+fails with `tls_verification_failed`, and an unreadable `ca_file` fails
+configuration validation with exit code `2`.
+
 ## Network checks
 
 `tcp` and `dns` checks catch firewall, egress allowlist, private DNS zone, and
