@@ -23,6 +23,18 @@
       "timeout_ms": 1000
     },
     {
+      "name": "Package mirror resolves",
+      "kind": "dns",
+      "target": "example.com",
+      "timeout_ms": 1000
+    },
+    {
+      "name": "Package mirror reachable",
+      "kind": "tcp",
+      "target": "example.com:443",
+      "timeout_ms": 2000
+    },
+    {
       "name": "Optional local cache",
       "kind": "file",
       "target": "./cache",

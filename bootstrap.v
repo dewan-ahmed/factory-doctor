@@ -6,7 +6,7 @@ import time
 
 const bootstrap_categories = ['identity', 'secrets', 'source_control', 'connectors', 'environments',
 	'network', 'agents', 'models', 'budgets', 'observability', 'policy']
-const verification_kinds = ['manual', 'env', 'http', 'command', 'git_remote', 'file']
+const verification_kinds = ['manual', 'env', 'http', 'command', 'git_remote', 'file', 'tcp', 'dns']
 const bootstrap_template = $embed_file('examples/factory-bootstrap.json')
 
 pub struct BootstrapProfile {

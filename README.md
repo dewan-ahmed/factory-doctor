@@ -19,6 +19,9 @@ version 1.0.
 - `git_remote`: confirm a Git remote and optional ref are accessible.
 - `file`: confirm a local file or directory is readable.
 - `env`: confirm an environment variable is set without printing its value.
+- `tcp`: open a TCP connection to `host:port`, then close it without sending
+  data.
+- `dns`: confirm a hostname resolves to at least one address.
 
 Checks marked `"critical": false` produce warnings instead of a failing exit
 code.
@@ -67,6 +70,41 @@ Exit codes are stable:
 - `0`: all critical checks passed.
 - `1`: at least one critical check failed.
 - `2`: invalid arguments or configuration.
+
+## Network checks
+
+`tcp` and `dns` checks catch firewall, egress allowlist, private DNS zone, and
+VPN problems for dependencies that do not speak HTTP, such as databases,
+caches, brokers, and SSH Git hosts. They use the standard library and need no
+`nc`, `dig`, or `nslookup` on the runner.
+
+```json
+[
+  {
+    "name": "Postgres reachable",
+    "kind": "tcp",
+    "target": "db.internal.example.com:5432",
+    "timeout_ms": 2000
+  },
+  {
+    "name": "Internal registry resolves",
+    "kind": "dns",
+    "target": "registry.internal.example.com",
+    "args": ["ipv4"],
+    "timeout_ms": 1000
+  }
+]
+```
+
+A `tcp` target must include a port. Wrap IPv6 literals in brackets, as in
+`[::1]:5432`. Configuration validation rejects other forms with exit code `2`.
+A `dns` check can list required address families, `ipv4` or `ipv6`, in `args`.
+
+Failure codes are `dns_resolution_failed`, `tcp_connect_refused`,
+`tcp_connect_timeout`, `tcp_connect_failed` (for example, network unreachable),
+`dns_family_missing`, and `invalid_target`. With `"expect": "fail"`, a
+resolution failure, refusal, timeout, or connect failure counts as denied. A
+missing address family is inconclusive, because the name still resolved.
 
 ## Configuration
 
